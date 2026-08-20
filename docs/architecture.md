@@ -73,7 +73,7 @@ Today the pipeline commands do not exist yet. This is the honest surface:
 | `uv run pytest` | **no** | nothing | shipped |
 | `uv run ruff check .` | **no** | nothing | shipped |
 | `uv run ruff format .` | **no** | source files | shipped |
-| `fpl-fetch` | **yes** | `data/bronze/fpl-api/` | FOO-3, blocked on FOO-21 |
+| `fpl-fetch` | **yes** | `data/bronze/fpl-api/` | shipped, **gated** (see below) |
 | `fpl-qa` | **no** | `report/qa.md` + exit code | shipped |
 | `fpl-check-sources` | **yes** | nothing | not ticketed |
 
@@ -149,6 +149,19 @@ loader is ready; the data is not.
 A fetcher is therefore: check `is_present()` → if absent, `fetch()` → then
 `write_bronze()`. ⚠ **Check presence *before* reaching the network**, or a clean
 re-run costs a polite round-trip per artifact instead of costing nothing.
+
+`src/fpl/fetch_fpl.py` is the worked example — copy its shape for a new source.
+
+⚠ **`fpl-fetch` is built but gated.** It exits 2 without touching the network
+until the register carries an `INGEST` verdict for `fpl-api`, which is Chester's
+call in FOO-21. `--dry-run` works regardless and needs no register, so the plan
+is inspectable while the gate is shut. This is the rule working, not a bug:
+
+```
+$ uv run fpl-fetch --gameweek 1
+fetch: refusing to run -- data/bronze/manual/sources.csv is not a usable source register:
+  - the file does not exist. It is created by FOO-20, transcribing Chester's verdicts from Linear.
+```
 
 ---
 
