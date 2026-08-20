@@ -70,7 +70,7 @@ Today the pipeline commands do not exist yet. This is the honest surface:
 | command | network | writes | status |
 | --- | --- | --- | --- |
 | `uv sync` | yes (PyPI) | `.venv/`, `uv.lock` | shipped |
-| `uv run pytest` | **no** | nothing | shipped — 73 tests |
+| `uv run pytest` | **no** | nothing | shipped |
 | `uv run ruff check .` | **no** | nothing | shipped |
 | `uv run ruff format .` | **no** | source files | shipped |
 | `fpl-fetch` | **yes** | `data/bronze/fpl-api/` | FOO-3, blocked on FOO-21 |
@@ -134,13 +134,17 @@ two module APIs, not learning an abstraction.
 | --- | --- | --- |
 | `lib/http.py` | the only socket in the project: `USER_AGENT`, `Throttle`, `fetch()` | FOO-24 ✅ |
 | `lib/bronze.py` | the only way bytes land: `write_bronze()`, `is_present()`, `read_manifest()` | FOO-25 ✅ |
-| `lib/sources.py` | loads and enforces the register | FOO-26 |
+| `lib/sources.py` | the register: `SourceRegister.load()`, validation, the verdict lookup | FOO-26 ✅ |
 
 **The registry seam.** `write_bronze` takes a `SourceRegistry` protocol — one
 method, `verdict(source_id) -> str | None` — as a required argument with no
-default. There is deliberately no unchecked way to store bytes. `lib/sources.py`
-will implement that one method; `bronze.py` neither knows nor cares how the
-answer is obtained.
+default. There is deliberately no unchecked way to store bytes.
+`SourceRegister` satisfies that protocol; `bronze.py` neither knows nor cares
+how the answer is obtained, and tests pass a dict-backed fake.
+
+⚠ **The register file itself does not exist yet** — `SourceRegister.load()`
+raises naming FOO-20, which creates it by transcribing Chester's verdicts. The
+loader is ready; the data is not.
 
 A fetcher is therefore: check `is_present()` → if absent, `fetch()` → then
 `write_bronze()`. ⚠ **Check presence *before* reaching the network**, or a clean
