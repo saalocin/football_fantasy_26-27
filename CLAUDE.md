@@ -266,9 +266,12 @@ also why a ticket may not cover two sources: it could not carry both answers.
 - **Language**: Python 3.13
 - **Dependencies**: `uv` + `pyproject.toml` (one tool for venv, deps, lockfile)
 - **Data handling**: pandas / numpy
-- **Optimization**: PuLP or OR-Tools for the ILP solver — not needed for bronze,
-  and OR-Tools' CPython 3.13 Windows wheel should be confirmed before committing
-  to it.
+- **Optimization**: PuLP or OR-Tools for the ILP solver — not needed for bronze.
+  ⚠ OR-Tools' CPython 3.13 Windows wheel is **confirmed working**
+  (`ortools-9.15.6755-cp313-cp313-win_amd64.whl`, verified 2026-08-20 by solving
+  the actual squad-selection problem). It pulls numpy, pandas and protobuf with
+  it — about 23 MB — so on a bronze-only checkout that is real weight for
+  nothing. Add it when M3 starts, not before.
 - Further libraries (projection modeling, CLI/UI, etc.) to be decided as the
   project takes shape.
 
