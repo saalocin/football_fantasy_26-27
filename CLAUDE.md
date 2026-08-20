@@ -139,11 +139,121 @@ Two of each chip per season — **8 chips total**. Only one chip per gameweek.
    can sanity-check and act on manually in the official FPL app (this tool
    advises; it does not need to submit transfers automatically).
 
+## Architecture (medallion)
+
+Same shape as [`diadoche`](../diadoche) — three data layers under `data/`, each
+built from the one above it, never edited by hand downstream of bronze. That
+project is TypeScript and this one is Python, so the *layout, the manifest
+contract and the hard rules* carry across; none of the code does.
+
+- `data/bronze/<source_id>/` — **raw source data, committed exactly as fetched,
+  never edited.** One directory per source, each carrying a `manifest.json` with
+  `sha256`, `license`, `url` and `retrieved_at` for every artifact. Hand-curated
+  CSVs in `data/bronze/manual/` are **a first-class bronze source**
+  (`source_id = manual`), not a patch layer.
+- `data/silver/` — normalized tables, rebuilt from bronze.
+  ⚠ **NOT STARTED. Do not build it yet.**
+- `data/gold/` — derived products: projections, optimizer inputs, the gameweek
+  recommendation payload. ⚠ **NOT STARTED.**
+
+⚠ **Bronze is this project's memory, not its cache.** The FPL API serves only
+*current* state. Once a gameweek passes, its prices, ownership, form and injury
+flags cannot be re-fetched at any price — not from the API, not from anywhere. A
+gameweek we did not commit is a gameweek that is gone. This is why the rule below
+about `data/` is absolute rather than a preference.
+
+### The bronze manifest
+
+Every bronze directory carries a `manifest.json` — a JSON array, one object per
+artifact. `season` and `gameweek` are this project's additions to the diadoche
+shape: diadoche's bronze has no time axis, and ours is worth nothing without one.
+
+```json
+{
+  "id": "bootstrap-static",
+  "source_id": "fpl-api",
+  "title": "FPL bootstrap-static — players, teams, prices, current gameweek",
+  "url": "https://fantasy.premierleague.com/api/bootstrap-static/",
+  "license": "…the verdict, and the day it was confirmed at the host…",
+  "retrieved_at": "2026-08-20T15:04:54.097Z",
+  "season": "2026-27",
+  "gameweek": 1,
+  "bytes": 1636166,
+  "sha256": "e874b27a51d1…"
+}
+```
+
+### The source register
+
+`data/bronze/manual/sources.csv` declares every source that may be fetched:
+
+```
+source_id,kind,title,url,license,verdict,approved_in,update_frequency,joins_on,summary,notes
+```
+
+`source_id` is a permanent lowercase slug — it goes into every manifest, so it is
+frozen once used. `verdict` is one of:
+
+| verdict | means |
+|---|---|
+| `INGEST` | the bytes may be stored in bronze |
+| `FACTS-ONLY` | the figures may be used; the payload may not be stored |
+| `LINK-ONLY` | cite it and link to it; take nothing |
+| `REJECTED` | evaluated and refused — may not be used at all |
+
+⚠ **A refused source still gets a row.** `REJECTED` exists so that "we looked at
+this and said no" is recorded rather than absent. A source with no row at all
+means nobody has evaluated it yet, and those two states must never look alike —
+otherwise the same terms of use get researched twice a year apart.
+
+`notes` records the licence confirmation **and the date it was read at the host**.
+
+### How a source is approved
+
+⚠ **The approval happens in Linear; the row is a transcription of it.**
+
+1. **Chester decides.** The verdict, the licence quote, the date it was read at
+   the host, and the reasoning go in the Linear ticket for that source. The
+   ticket moving to `Done` is the approval, and it is the only thing that is.
+2. **Nicolaas transcribes.** The `sources.csv` row is written from that ticket,
+   in a commit of its own, before any data uses the source.
+3. **`approved_in` names the ticket.** Every row carries the id of the ticket
+   that approved it, so the repo can always be walked back to the decision. A
+   row whose `approved_in` names no real ticket is a row nobody approved.
+
+## Hard rules
+
+- **Never gitignore anything under `data/`.** Bronze lives in the repo. Clone it
+  and query immediately.
+- **Bronze is never edited.** A wrong byte in bronze is re-fetched, not corrected.
+  A correction is a curated row that overrides it, with a reason.
+- ⚠ **No source is fetched before it has a row in `data/bronze/manual/sources.csv`
+  carrying a licence verdict and the ticket that approved it.** The register is
+  the gate. What goes in it is **Chester's call, decided in Linear** — not the
+  fetcher author's, and not a judgement made while writing the fetcher.
+- **Everything below the fetch layer is offline and deterministic**, so a rebuild
+  can be diffed. Only a `fetch-*` command may reach the network.
+- **Provenance on every artifact**: `source_id` + `retrieved_at`, and every
+  `source_id` resolves in `sources.csv`.
+- **A fetch is idempotent.** A clean re-run writes nothing and leaves
+  `git status` clean.
+- **One commit per task, and ⚠ the subject line BEGINS with the Linear ticket
+  id** — `FOO-25 · bronze: manifest carries sha256 and the day`. That is what
+  makes `git log --oneline | grep FOO-25` answer *"what shipped for this ticket"*
+  without opening anything. Where a commit genuinely serves no ticket, say
+  `(no ticket)` rather than leaving the slot empty.
+- **Linear is the tracker** — see "Project tracking" below for the team, the
+  project and the milestones. ⚠ **Nothing that is open lives in a markdown file
+  at the repo root.** A todo in a file is a todo the rest of the team cannot see.
+
 ## Tech stack
 
-- **Language**: Python
+- **Language**: Python 3.13
+- **Dependencies**: `uv` + `pyproject.toml` (one tool for venv, deps, lockfile)
 - **Data handling**: pandas / numpy
-- **Optimization**: PuLP or OR-Tools for the ILP solver
+- **Optimization**: PuLP or OR-Tools for the ILP solver — not needed for bronze,
+  and OR-Tools' CPython 3.13 Windows wheel should be confirmed before committing
+  to it.
 - Further libraries (projection modeling, CLI/UI, etc.) to be decided as the
   project takes shape.
 
@@ -170,6 +280,6 @@ in scratch notes.
 
 ## Status
 
-Repo scaffolding not yet started; the Linear backlog is seeded. This file will
-be kept up to date as architecture, data sources, and modeling decisions are
-made.
+Repo scaffolding not yet started; the Linear backlog is seeded. **Bronze layer
+only** — silver and gold are deliberately not started, see the warnings above.
+Live status is the Linear board, not this file.
