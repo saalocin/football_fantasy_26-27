@@ -288,7 +288,12 @@ def main(
     report = sweep(root, register_path)
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(report.to_markdown(), encoding="utf-8")
+    # ⚠ newline="\n" explicitly. Without it Python writes CRLF on Windows while
+    # git stores LF (report/*.md is `text eol=lf`), so the committed blob and the
+    # file on disk would differ by platform. git normalises on read, so nothing
+    # looks wrong — which is exactly why it is worth pinning rather than leaving
+    # to the OS.
+    report_path.write_text(report.to_markdown(), encoding="utf-8", newline="\n")
 
     # ASCII only: see the module docstring.
     print(

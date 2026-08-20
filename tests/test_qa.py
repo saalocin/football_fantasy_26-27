@@ -345,3 +345,19 @@ def test_terminal_output_is_ascii(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     out.encode("ascii")  # raises UnicodeEncodeError if anything non-ASCII slipped in
     assert out.strip()
+
+
+def test_the_report_is_written_with_lf_on_every_platform(tmp_path: Path) -> None:
+    """Python writes CRLF on Windows by default; git stores this file as LF.
+
+    The mismatch is invisible because git normalises on read, which is exactly
+    what makes it worth pinning: the committed blob and the file on disk should
+    not differ by which machine ran the command.
+    """
+    root = tmp_path / "bronze"
+    land(root)
+    report_path = tmp_path / "report" / "qa.md"
+
+    main([str(root)], register_path=register_at(tmp_path, ROW), report_path=report_path)
+
+    assert b"\r" not in report_path.read_bytes()
