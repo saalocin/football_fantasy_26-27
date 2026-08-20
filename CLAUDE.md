@@ -141,10 +141,15 @@ Two of each chip per season — **8 chips total**. Only one chip per gameweek.
 
 ## Architecture (medallion)
 
-Same shape as [`diadoche`](../diadoche) — three data layers under `data/`, each
+Same shape as `diadoche` (a sibling project of Nicolaas's, not vendored here) —
+three data layers under `data/`, each
 built from the one above it, never edited by hand downstream of bronze. That
 project is TypeScript and this one is Python, so the *layout, the manifest
 contract and the hard rules* carry across; none of the code does.
+
+⚠ **Before changing the pipeline, read [`docs/architecture.md`](docs/architecture.md)** —
+the stage map, the command surface, which commands may reach the network, the
+standing rules, and a table saying where a given kind of change belongs.
 
 - `data/bronze/<source_id>/` — **raw source data, committed exactly as fetched,
   never edited.** One directory per source, each carrying a `manifest.json` with
