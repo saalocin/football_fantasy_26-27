@@ -212,14 +212,24 @@ otherwise the same terms of use get researched twice a year apart.
 
 ⚠ **The approval happens in Linear; the row is a transcription of it.**
 
-1. **Chester decides.** The verdict, the licence quote, the date it was read at
-   the host, and the reasoning go in the Linear ticket for that source. The
-   ticket moving to `Done` is the approval, and it is the only thing that is.
+**One source, one ticket, one verdict.** Linear has no approval feature, so the
+verdict is carried by the **`Verdict` label group** on team `FOO` — `INGEST`,
+`FACTS-ONLY`, `LINK-ONLY`, `REJECTED`. Label groups are mutually exclusive, so a
+ticket can hold exactly one, which is the constraint a verdict needs. This is
+also why a ticket may not cover two sources: it could not carry both answers.
+
+1. **Chester decides.** He applies one `Verdict` label, comments the evidence —
+   the licence text, the URL, the date he read it at the host — and moves the
+   ticket to `Done`. Those three together are the approval; `Done` on its own is
+   not, because it says the work finished without saying what was decided.
 2. **Nicolaas transcribes.** The `sources.csv` row is written from that ticket,
-   in a commit of its own, before any data uses the source.
+   in a commit of its own, before any data uses the source. ⚠ **Never invent a
+   verdict here.** If a row needs one no ticket states, that is a question for
+   Chester, not a judgement call at the keyboard.
 3. **`approved_in` names the ticket.** Every row carries the id of the ticket
-   that approved it, so the repo can always be walked back to the decision. A
-   row whose `approved_in` names no real ticket is a row nobody approved.
+   that approved it, so the repo can always be walked back to the decision, and
+   `qa` can compare the row's `verdict` against that ticket's label. A row whose
+   `approved_in` names no real ticket is a row nobody approved.
 
 ## Hard rules
 
