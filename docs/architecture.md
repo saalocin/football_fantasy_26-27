@@ -74,7 +74,7 @@ Today the pipeline commands do not exist yet. This is the honest surface:
 | `uv run ruff check .` | **no** | nothing | shipped |
 | `uv run ruff format .` | **no** | source files | shipped |
 | `fpl-fetch` | **yes** | `data/bronze/fpl-api/` | FOO-3, blocked on FOO-21 |
-| `fpl-qa` | **no** | `report/qa.md` + exit code | FOO-27 |
+| `fpl-qa` | **no** | `report/qa.md` + exit code | shipped |
 | `fpl-check-sources` | **yes** | nothing | not ticketed |
 
 Two conventions inherited from diadoche and worth keeping when those land:
@@ -217,10 +217,19 @@ other, and a third is still to come.
 | --- | --- | --- |
 | `uv run pytest` | the **code** — pure functions in `lib/` | anything about the data actually on disk |
 | `uv run ruff check .` | style and a set of common bugs | behaviour |
-| `fpl-qa` (FOO-27) | the **data** in `data/bronze/` | the network; whether a value is *correct*, only whether it is consistent |
+| `uv run fpl-qa` | the **data** in `data/bronze/` | the network; whether a value is *correct*, only whether it is consistent |
+
+`fpl-qa` separates **error** from **warn**: only errors fail the build. An
+unsorted manifest is a warning because the data is still described truthfully —
+it just makes the next rewrite a noisy diff. A sha256 that does not match its
+bytes is an error, because something is wrong with the data itself.
+
+⚠ **An empty `data/bronze/` is green, not red.** Nothing fetched and no register
+yet is a legitimate stage of the project. The missing register warns; it only
+becomes an error once an artifact exists that depends on it.
 
 ⚠ **Two of the tests in `tests/test_layout.py` are structural guards, not unit
 tests.** They assert that nothing under `data/` is gitignored and that fetched
 bronze is never normalised. Both cover rules that fail *silently*. If either
 starts failing, the fix is the `.gitignore` or `.gitattributes` rule — never the
-test. Neither has been run inverted yet; do it when FOO-27 lands.
+test.

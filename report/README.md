@@ -7,4 +7,6 @@ The split that matters: **generated output lives here, hand-written reference
 lives in `docs/`.** Keeping them apart is what lets you trust that a file under
 `docs/` was written by a person on purpose.
 
-First occupant will be `qa.md`, from the bronze integrity sweep (FOO-27).
+| file | written by | notes |
+| --- | --- | --- |
+| `qa.md` | `uv run fpl-qa` | The bronze integrity sweep. ⚠ Carries no timestamp on purpose — a generated-at line would make every run a diff, and diffs nobody reads are diffs that hide real change. |

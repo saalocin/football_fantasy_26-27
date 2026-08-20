@@ -9,6 +9,10 @@ dependencies = [
     "httpx>=0.28",
 ]
 
+[project.scripts]
+# Commands land as their tickets do. fpl-fetch is FOO-3, blocked on FOO-21.
+fpl-qa = "fpl.qa:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
