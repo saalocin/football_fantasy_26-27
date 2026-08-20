@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# OS noise
+Thumbs.db
+.DS_Store
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠ NOTHING UNDER data/ IS EVER ADDED TO THIS FILE.
+#
+# The FPL API serves only CURRENT state. Once a gameweek passes, its prices,
+# ownership, form and injury flags cannot be re-fetched at any price — not from
+# the API, not from anywhere. data/bronze/ is this project's memory, not a
+# cache, and a gameweek we did not commit is a gameweek that is gone.
+#
+# data/silver/ and data/gold/ are committed too, once they exist. Clone the
+# repo and query immediately.
+#
+# If a data path ever looks big enough to want ignoring, the answer is a
+# different storage format, never an ignore rule.
+# ─────────────────────────────────────────────────────────────────────────────

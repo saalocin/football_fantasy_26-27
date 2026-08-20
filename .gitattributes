@@ -1,0 +1,44 @@
+# Text files are normalised to LF so a Windows checkout does not rewrite them.
+*.py     text eol=lf
+*.toml   text eol=lf
+*.md     text eol=lf
+*.cfg    text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.lock   text eol=lf
+*.txt    text eol=lf
+.gitignore     text eol=lf
+.gitattributes text eol=lf
+
+# Data-shaped text formats get LF too — but note the bronze rule BELOW overrides
+# these for anything fetched. Order matters in this file: the last match wins.
+*.json   text eol=lf
+*.jsonl  text eol=lf
+*.csv    text eol=lf
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠ BRONZE IS BYTE-EXACT. GIT MUST NEVER TOUCH IT.
+#
+# Every bronze artifact is recorded in a manifest.json with a sha256 taken over
+# the bytes as served. If git normalises line endings on checkout, those bytes
+# change and EVERY hash in EVERY manifest goes wrong at once — silently, and
+# only on the machine that checked out.
+#
+# So bronze is marked -text: no normalisation, no eol conversion, ever. This is
+# deliberately broader than "mark *.gz binary", because a fetched .json or .csv
+# is just as byte-sensitive as a gzip.
+# ─────────────────────────────────────────────────────────────────────────────
+data/bronze/** -text
+
+# The one exception: curated CSVs under manual/ are hand-authored rather than
+# fetched, carry no sha256, and are diffed by humans — so they get LF like any
+# other source file. Listed after the rule above so it wins.
+data/bronze/manual/*.csv text eol=lf
+
+# Binary regardless of location.
+*.gz      binary
+*.zip     binary
+*.parquet binary
+*.duckdb  binary
+*.png     binary
+*.jpg     binary
