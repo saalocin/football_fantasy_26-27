@@ -113,13 +113,47 @@ flags cannot be re-fetched at any price. This single fact is the reason for the
 ### Silver owns what is true, and who says so — NOT STARTED
 
 One row per fact, `source_id` and `retrieved_at` on every one. Silver never
-decides how a thing is *shown*.
+decides how a thing is *shown*, and never asserts anything a source did not.
+
+Silver holds what was **observed**: player-gameweek results, fixtures and their
+outcomes, prices and ownership as they stood, injury flags as published. Every
+row traces to something the FPL API actually said on a given day.
 
 ### Gold owns what a reader sees — NOT STARTED
 
-Shape, ordering, ranking, thresholds, presentation. ⚠ **A judgement a reader
-could disagree with belongs in gold, not silver.** "Is 4.2 expected points good"
-is a gold question; "this player is projected 4.2" is a silver one.
+Shape, ordering, ranking, thresholds, presentation — and **everything we
+compute**. ⚠ **A judgement a reader could disagree with belongs in gold, not
+silver.**
+
+Gold holds what was **derived**: the minutes model, expected points, our own
+fixture-difficulty ratings, the DEFCON threshold probabilities, the chosen
+squad, the captain, the gameweek report.
+
+⚠ **A PROJECTION IS A JUDGEMENT, SO PROJECTIONS ARE GOLD.** This is worth
+stating flatly because it is the boundary every M2–M5 ticket sits on, and an
+earlier draft of this section got it backwards. "Salah scored 2 goals in GW1" is
+silver — the API said so. "Salah is projected 6.4 next week" is gold — *we* say
+so, and a reasonable person with the same silver could say 5.1.
+
+The test that settles it: **could two competent people build this from identical
+silver and disagree?** If yes, it is gold. Every model in M2 fails that test, so
+every model in M2 writes gold.
+
+### The concrete mapping
+
+| thing | layer | why |
+| --- | --- | --- |
+| `bootstrap-static` payload as served | bronze | what the source said |
+| the source register (`sources.csv`) | bronze | a human source, `source_id = manual` |
+| player-gameweek results, normalised | silver | observed, traceable to a fetch |
+| fixtures, prices, ownership as they stood | silver | observed |
+| minutes model · xPts · our FDR · DEFCON probabilities | **gold** | derived, disputable |
+| chosen squad · captain · transfer plan · chip call | **gold** | derived, disputable |
+| the gameweek report | gold | shaped for one reader |
+
+⚠ **Gold may read gold.** The optimizer consumes projections, which are
+themselves gold. That is not a layer violation — it is one derived product
+feeding another, the same way diadoche's search index is built from its graph.
 
 ---
 
