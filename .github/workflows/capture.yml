@@ -1,0 +1,90 @@
+# Weekly capture of the FPL API into bronze.
+#
+# ⚠ THIS IS THE ONLY THING STANDING BETWEEN A MISSED GAMEWEEK AND A PERMANENT
+# HOLE IN THE SEASON. The API serves only current state; a week nobody captured
+# cannot be re-fetched at any price, from anywhere.
+#
+# Runs DAILY rather than weekly, on purpose. The fetch is idempotent — a day
+# whose artifacts are already present writes nothing and costs no requests — so
+# running often is nearly free, and it removes any need to predict when the
+# deadline falls. Deadlines move; a cron schedule that tries to track them will
+# eventually miss one.
+name: capture
+
+on:
+  schedule:
+    # 06:00 and 18:00 UTC. Two attempts a day means a transient API outage or a
+    # runner failure does not cost a gameweek.
+    - cron: "0 6,18 * * *"
+  workflow_dispatch:
+    inputs:
+      gameweek:
+        description: "Gameweek to capture (required until discovery lands — see FOO-4)"
+        required: true
+        type: string
+      season:
+        description: "Season label"
+        required: false
+        default: "2026-27"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Fetch
+        id: fetch
+        run: |
+          set +e
+          uv run fpl-fetch \
+            --season "${{ inputs.season || '2026-27' }}" \
+            --gameweek "${{ inputs.gameweek || '1' }}"
+          code=$?
+          set -e
+          # ⚠ Exit 2 is the register gate refusing, which is a CORRECT outcome
+          # while FOO-21 is open — not a failure. Treating it as one would train
+          # everyone to ignore this workflow's red X, and then a real failure
+          # would go unnoticed too.
+          if [ $code -eq 2 ]; then
+            echo "::notice::register gate closed — nothing fetched. This is expected until FOO-21 lands."
+            echo "gated=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit $code
+
+      - name: Integrity sweep
+        if: steps.fetch.outputs.gated != 'true'
+        run: uv run fpl-qa
+
+      - name: Commit anything new
+        if: steps.fetch.outputs.gated != 'true'
+        run: |
+          if [ -z "$(git status --porcelain data/ report/)" ]; then
+            echo "nothing changed — already captured"
+            exit 0
+          fi
+          git config user.name  "fpl-capture[bot]"
+          git config user.email "fpl-capture[bot]@users.noreply.github.com"
+          git add data/ report/
+          git commit -m "FOO-4 · capture: bronze snapshot $(date -u +%Y-%m-%d)
+
+          Automated weekly capture. The FPL API serves only current state, so
+          this is the only copy of this gameweek that will ever exist.
+
+          Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+          git push

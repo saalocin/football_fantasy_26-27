@@ -19,6 +19,7 @@ UTF-8 and has no such restriction.
 
 from __future__ import annotations
 
+import argparse
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,7 +27,16 @@ from pathlib import Path
 from fpl.lib.bronze import BRONZE_ROOT, MANIFEST_NAME, ManifestEntry, read_manifest, sha256_of
 from fpl.lib.sources import REGISTER_PATH, RegisterError, SourceRegister
 
-__all__ = ["Check", "ERROR", "Report", "WARN", "main", "sweep"]
+__all__ = [
+    "Check",
+    "ERROR",
+    "Report",
+    "WARN",
+    "gameweek_coverage",
+    "main",
+    "missing_gameweeks",
+    "sweep",
+]
 
 ERROR = "error"
 WARN = "warn"
@@ -91,7 +101,11 @@ class Report:
         return "\n".join(lines) + "\n"
 
 
-def sweep(root: Path = BRONZE_ROOT, register_path: Path = REGISTER_PATH) -> Report:
+def sweep(
+    root: Path = BRONZE_ROOT,
+    register_path: Path = REGISTER_PATH,
+    through_gameweek: int | None = None,
+) -> Report:
     """Walk bronze and hold it to its own rules."""
     report = Report()
 
@@ -114,7 +128,81 @@ def sweep(root: Path = BRONZE_ROOT, register_path: Path = REGISTER_PATH) -> Repo
             detail=", ".join(str(p) for p in strays) if strays else "",
         )
 
+    _check_coverage(report, root, through_gameweek)
     return report
+
+
+def gameweek_coverage(root: Path = BRONZE_ROOT) -> dict[str, set[int]]:
+    """Which gameweeks each season has landed, from the manifests.
+
+    Artifacts with no gameweek are ignored on purpose — element-summary is
+    cumulative season history rather than a snapshot, so it says nothing about
+    whether a given week was captured.
+    """
+    coverage: dict[str, set[int]] = {}
+    if not root.is_dir():
+        return coverage
+    for source_dir in root.iterdir():
+        if not source_dir.is_dir() or source_dir.name == MANUAL_DIR:
+            continue
+        if not (source_dir / MANIFEST_NAME).exists():
+            continue
+        try:
+            entries = read_manifest(source_dir.name, root)
+        except Exception:  # noqa: BLE001 - _check_source already reports this
+            continue
+        for entry in entries:
+            if entry.season and entry.gameweek is not None:
+                coverage.setdefault(entry.season, set()).add(entry.gameweek)
+    return coverage
+
+
+def missing_gameweeks(present: set[int], through: int | None = None) -> list[int]:
+    """Gameweeks that should be there and are not.
+
+    ⚠ Interior gaps are always reported — having GW1, GW2 and GW4 proves GW3
+    was missed, with no configuration needed. Trailing gaps need someone to say
+    what gameweek it is now, because "we have up to GW7" is indistinguishable
+    from "the season has reached GW7" without it.
+    """
+    if not present:
+        return list(range(1, through + 1)) if through else []
+    ceiling = max(present) if through is None else max(max(present), through)
+    return [gw for gw in range(min(present), ceiling + 1) if gw not in present]
+
+
+def _check_coverage(report: Report, root: Path, through: int | None) -> None:
+    """⚠ The one check that looks for data that is NOT there.
+
+    Every other check in this sweep inspects artifacts that exist. A gameweek
+    nobody captured produces no file, no manifest entry and no error — it is
+    silent, and the FPL API will not serve it again. This is the only thing
+    standing between a missed week and a permanent hole in the season.
+    """
+    coverage = gameweek_coverage(root)
+    if not coverage:
+        if through:
+            report.add(
+                "every expected gameweek has been captured",
+                False,
+                detail=f"nothing captured at all, but the season has reached GW{through}",
+            )
+        return
+
+    for season in sorted(coverage):
+        present = coverage[season]
+        gaps = missing_gameweeks(present, through)
+        span = f"GW{min(present)}-{max(present)}"
+        report.add(
+            f"{season}: every expected gameweek has been captured",
+            not gaps,
+            detail=(
+                f"missing {', '.join(f'GW{g}' for g in gaps)} — these cannot be "
+                "re-fetched; the FPL API serves only current state"
+                if gaps
+                else f"{len(present)} gameweeks, {span}"
+            ),
+        )
 
 
 def _check_register(
@@ -282,10 +370,21 @@ def main(
     that a test can point it at a temp directory. A guard whose own test suite
     writes into the repo it guards is not a guard anyone should trust.
     """
-    argv = sys.argv[1:] if argv is None else argv
-    root = Path(argv[0]) if argv else BRONZE_ROOT
+    parser = argparse.ArgumentParser(
+        prog="fpl-qa", description="Bronze integrity sweep. Offline; non-zero exit on error."
+    )
+    parser.add_argument("root", nargs="?", type=Path, default=BRONZE_ROOT)
+    parser.add_argument(
+        "--through-gameweek",
+        type=int,
+        help=(
+            "the gameweek the season has reached. Without it only INTERIOR gaps "
+            "are detectable; with it, a missing latest gameweek is caught too."
+        ),
+    )
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
 
-    report = sweep(root, register_path)
+    report = sweep(args.root, register_path, args.through_gameweek)
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     # ⚠ newline="\n" explicitly. Without it Python writes CRLF on Windows while

@@ -76,6 +76,16 @@ Today the pipeline commands do not exist yet. This is the honest surface:
 | `fpl-fetch` | **yes** | `data/bronze/fpl-api/` | shipped, **gated** (see below) |
 | `fpl-qa` | **no** | `report/qa.md` + exit code | shipped |
 | `fpl-check-sources` | **yes** | nothing | not ticketed |
+| `.github/workflows/capture.yml` | **yes** (calls `fpl-fetch`) | `data/bronze/`, committed | shipped, **scheduled** |
+
+⚠ **`capture.yml` is the only thing standing between a missed gameweek and a
+permanent hole in the season.** It runs twice daily rather than weekly, because
+the fetch is idempotent — an already-captured day writes nothing — so running
+often is nearly free and removes any need to predict when a deadline falls.
+
+It treats `fpl-fetch`'s **exit 2 (register gate closed) as success**, with a
+notice. A workflow that goes red every day until FOO-21 lands is a workflow
+everyone learns to ignore, and then a real failure goes unnoticed too.
 
 Two conventions inherited from diadoche and worth keeping when those land:
 

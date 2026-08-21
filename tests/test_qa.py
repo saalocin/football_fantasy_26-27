@@ -361,3 +361,112 @@ def test_the_report_is_written_with_lf_on_every_platform(tmp_path: Path) -> None
     main([str(root)], register_path=register_at(tmp_path, ROW), report_path=report_path)
 
     assert b"\r" not in report_path.read_bytes()
+
+
+# ------------------------------------------------------- gameweek coverage
+
+
+def land_gw(root: Path, gameweek: int, season: str = "2026-27") -> None:
+    write_bronze(
+        source_id="fpl-api",
+        artifact_id=f"bootstrap-static-gw{gameweek:02d}",
+        data=f'{{"gw":{gameweek}}}'.encode(),
+        url="https://fantasy.premierleague.com/api/",
+        title=f"bootstrap GW{gameweek}",
+        license="INGEST",
+        registry=Registry(),
+        season=season,
+        gameweek=gameweek,
+        root=root,
+    )
+
+
+def test_an_interior_gap_is_caught_with_no_configuration(tmp_path: Path) -> None:
+    """GW1, 2 and 4 present proves GW3 was missed. Nothing needs to be told."""
+    root = tmp_path / "bronze"
+    for gw in (1, 2, 4):
+        land_gw(root, gw)
+
+    report = sweep(root, register_at(tmp_path, ROW))
+
+    assert report.ok is False
+    assert "GW3" in failures(report)
+    assert "cannot be re-fetched" in failures(report)
+
+
+def test_several_interior_gaps_are_all_named(tmp_path: Path) -> None:
+    root = tmp_path / "bronze"
+    for gw in (1, 4, 5, 9):
+        land_gw(root, gw)
+    detail = failures(sweep(root, register_at(tmp_path, ROW)))
+    for gw in ("GW2", "GW3", "GW6", "GW7", "GW8"):
+        assert gw in detail
+
+
+def test_a_contiguous_run_passes(tmp_path: Path) -> None:
+    root = tmp_path / "bronze"
+    for gw in (1, 2, 3, 4):
+        land_gw(root, gw)
+    report = sweep(root, register_at(tmp_path, ROW))
+    assert report.ok is True, failures(report)
+
+
+def test_a_trailing_gap_needs_through_gameweek(tmp_path: Path) -> None:
+    """⚠ 'we have up to GW7' and 'the season is at GW7' look identical."""
+    root = tmp_path / "bronze"
+    for gw in (1, 2, 3):
+        land_gw(root, gw)
+
+    assert sweep(root, register_at(tmp_path, ROW)).ok is True
+
+    late = sweep(root, register_at(tmp_path, ROW), through_gameweek=6)
+    assert late.ok is False
+    for gw in ("GW4", "GW5", "GW6"):
+        assert gw in failures(late)
+
+
+def test_nothing_captured_at_all_is_caught_when_the_season_has_started(tmp_path: Path) -> None:
+    root = tmp_path / "bronze"
+    root.mkdir()
+    report = sweep(root, register_at(tmp_path, ROW), through_gameweek=3)
+    assert report.ok is False
+    assert "nothing captured at all" in failures(report)
+
+
+def test_seasons_are_tracked_separately(tmp_path: Path) -> None:
+    root = tmp_path / "bronze"
+    land_gw(root, 1, "2025-26")
+    land_gw(root, 3, "2025-26")
+    land_gw(root, 1, "2026-27")
+    detail = failures(sweep(root, register_at(tmp_path, ROW)))
+    assert "2025-26" in detail and "GW2" in detail
+    assert "2026-27: every expected gameweek" not in detail, "a one-week season has no gaps"
+
+
+def test_artifacts_without_a_gameweek_do_not_affect_coverage(tmp_path: Path) -> None:
+    """element-summary is cumulative history, not a snapshot of a week."""
+    root = tmp_path / "bronze"
+    land_gw(root, 1)
+    write_bronze(
+        source_id="fpl-api",
+        artifact_id="element-summary-7-2026-27",
+        data=b"{}",
+        url="https://x.test/",
+        title="history",
+        license="INGEST",
+        registry=Registry(),
+        season="2026-27",
+        root=root,
+    )
+    assert sweep(root, register_at(tmp_path, ROW)).ok is True
+
+
+def test_missing_gameweeks_is_pure_and_handles_the_empty_case() -> None:
+    from fpl.qa import missing_gameweeks
+
+    assert missing_gameweeks({1, 2, 4}) == [3]
+    assert missing_gameweeks({1, 2, 3}) == []
+    assert missing_gameweeks({1, 2}, through=5) == [3, 4, 5]
+    assert missing_gameweeks(set()) == []
+    assert missing_gameweeks(set(), through=3) == [1, 2, 3]
+    assert missing_gameweeks({5, 6}) == [], "a season that started late is not a gap"
